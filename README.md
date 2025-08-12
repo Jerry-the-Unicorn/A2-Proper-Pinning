@@ -1,4 +1,4 @@
-# Proper Pinning — A2 SFIC
+# Proper Pinning for an A2 SFIC
 
 Fast, no-nonsense A2 SFIC pinning calculator.  
 Enter **Master** → **Change** → **Control**, then get exact **B / M / D / T** pin stacks for 6- or 7-pin cores.
