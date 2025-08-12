@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Proper Pinning for — A2 SFIC</title>
+<style>
+  :root{
+    --cardTop:#2f7df0; --cardBot:#1361d7;
+    --shadow:0 14px 30px rgba(0,0,0,.22); --radius:28px;
+    --scrollTrack:#C7D6FF; --scrollThumb:#6E98FF;
+    --red:#e74c3c; --blue:#2f7df0; --purple:#7b61ff; --green:#18bc6e;
+    --titleSize: clamp(28px, 6.8vw, 44px);
+  }
+  *{box-sizing:border-box;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#f6f8ff,#e9f1ff);min-height:100vh}
+
+  .wrap{width:min(860px,94vw);margin:24px auto}
+  h1,.sub strong{font-size:var(--titleSize);line-height:1.05;font-weight:900;letter-spacing:.2px;margin:0;text-align:center}
+  .sub{margin:-4px 0 16px 0;color:#475274;text-align:center}
+
+  .card{background:linear-gradient(180deg,var(--cardTop),var(--cardBot));color:#fff;border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+  .toolbar{display:flex;gap:14px;align-items:center;margin-bottom:10px}
+  .pill{display:inline-flex;gap:10px;align-items:center;background:rgba(255,255,255,.15);padding:8px 12px;border-radius:999px}
+  .pill label{display:flex;gap:6px;align-items:center;cursor:pointer}
+
+  .grid{display:grid;grid-template-columns:30px 1fr 1fr 1fr;gap:12px;align-items:center}
+  .idx{justify-self:center;font-weight:700;opacity:.9}
+  .colHead{justify-self:start}
+
+  /* Scroll area that hosts sticky header */
+  .scrollWrap{
+    max-height: calc(100vh - 180px);
+    max-height: calc(100dvh - 180px);
+    overflow:auto; overscroll-behavior:contain; scroll-behavior:smooth;
+    padding-bottom:12px; border-radius:16px;
+    touch-action: pan-y; -webkit-overflow-scrolling: touch;
+    position: relative;
+  }
+
+  /* STICKY COLUMN HEADERS (input screen only) */
+  .grid.header{
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    padding: 8px 0 10px;
+    font-weight: 800;
+    background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0));
+    backdrop-filter: blur(2px);
+    box-shadow: 0 8px 12px rgba(0,0,0,.10);
+    margin: 0;
+  }
+  /* When results are open, completely mute the sticky header */
+  body.resultsOpen .grid.header{ position:static!important; opacity:0; pointer-events:none }
+
+  .keyboardSpacer{ height:260px }
+
+  input.key{
+    width:100%; text-align:center; font-size:22px; padding:12px 10px;
+    border-radius:14px; border:2px solid rgba(255,255,255,.38);
+    background:#fff; color:#0e1726; outline:none; box-shadow:0 3px 0 rgba(0,0,0,.08) inset;
+    /* keep focused field below sticky header */
+    scroll-margin-top: 64px;
+  }
+  input.key:focus{border-color:#ffd36a;box-shadow:0 0 0 3px rgba(255,211,106,.35)}
+  input.key:disabled{opacity:.5;background:#eef2ff;color:#67728a}
+  .invalid{border-color:#dd3b3b!important; box-shadow:0 0 0 3px rgba(221,59,59,.28)!important; animation:shake .16s 2}
+  @keyframes shake{0%{transform:translateX(0)}50%{transform:translateX(-3px)}100%{transform:translateX(3px)}}
+
+  .btns{display:flex;gap:12px;margin-top:14px;justify-content:flex-end}
+  .btn{border:0;border-radius:14px;padding:12px 18px;font-weight:900;cursor:pointer}
+  .btn.clear{background:#f4c33b;color:#2f2500}
+  .btn.solve{background:#18bc6e;color:#002919}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .hide{display:none!important}
+
+  /* Single floating Top button (input screen only) */
+  .fabTop{
+    position:fixed; right:12px; bottom:96px; z-index:50;
+    width:56px; height:56px; border:0; border-radius:14px; color:#fff; font-weight:900;
+    background:rgba(0,0,0,.45); backdrop-filter:blur(4px); box-shadow:0 8px 18px rgba(0,0,0,.22);
+  }
+
+  /* RESULTS SCREEN (raised above everything) */
+  .screen{
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(180deg,#eef4ff,#e8f2ff);
+    color:#0e1726;
+    display:none;
+    flex-direction:column;
+    z-index: 1000; /* <- key fix so sticky header never overlaps */
+  }
+  .screen.show{display:flex}
+  .screenHeader{position:sticky; top:0; z-index:4; background:#ffffffcc; backdrop-filter:blur(6px); box-shadow:0 6px 20px rgba(0,0,0,.08); padding:10px 12px;}
+  .title{margin:0 0 8px 0; font-weight:900; font-size:28px; text-align:center}
+  .actionsRow{display:flex; gap:10px; flex-wrap:wrap; justify-content:center}
+  .chip{border:0; padding:10px 12px; border-radius:12px; font-weight:800; cursor:pointer; color:#fff}
+  .red{background:var(--red)} .blue{background:var(--blue)} .purple{background:var(--purple)} .green{background:var(--green);color:#002919}
+  .screenBody{padding:12px; overflow:auto; flex:1}
+
+  .resCard{background:linear-gradient(180deg,var(--cardTop),var(--cardBot));border-radius:16px;padding:10px;box-shadow:0 12px 28px rgba(0,0,0,.18)}
+  .table{border-radius:12px; overflow-x:scroll; overflow-y:hidden; background:#fff; border:1px solid #dbe6ff; -webkit-overflow-scrolling:touch; scrollbar-gutter:stable}
+  .table::-webkit-scrollbar{height:12px}
+  .table::-webkit-scrollbar-track{background:var(--scrollTrack);border-radius:12px}
+  .table::-webkit-scrollbar-thumb{background:var(--scrollThumb);border-radius:12px}
+  .table{scrollbar-color:var(--scrollThumb) var(--scrollTrack); scrollbar-width:thin}
+  .table table{width:100%; min-width:740px; border-collapse:separate; border-spacing:0}
+  .table th,.table td{padding:12px 10px; text-align:center; border-bottom:1px solid #e6edff; font-weight:800; font-size:20px}
+  .table tr:last-child td{border-bottom:0}
+  thead th{position:sticky; top:0; z-index:5; background:#D4E2FF}
+  .stickLeft{position:sticky; left:0; z-index:6; background:#ECF1FF; box-shadow:2px 0 0 #dfe7ff inset}
+  .corner{z-index:7}
+  .striped th:nth-child(n+2), .striped td:nth-child(n+2){background:#EAF3FF}
+  .striped th:nth-child(2n+2), .striped td:nth-child(2n+2){background:#DFF7EF}
+  .table.compact table{min-width:auto}
+  .table.compact th,.table.compact td{padding:6px 6px; font-size:16px}
+  .table.compact .stickLeft{font-size:16px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Proper Pinning for</h1>
+    <div class="sub"><strong>A2 SFIC</strong></div>
+
+    <div class="card">
+      <div class="toolbar" aria-label="Pin Count">
+        <div class="pill">
+          <strong style="margin-right:6px">Pin Count:</strong>
+          <label><input type="radio" name="pins" value="6"> 6</label>
+          <label><input type="radio" name="pins" value="7" checked> 7</label>
+        </div>
+      </div>
+
+      <div class="scrollWrap" id="scrollWrap">
+        <div class="grid header">
+          <div></div><div class="colHead">Master</div><div class="colHead">Change</div><div class="colHead">Control</div>
+        </div>
+        <div class="grid" id="grid"></div>
+
+        <div class="btns">
+          <button class="btn clear" id="clearBtn">Clear</button>
+          <button class="btn solve" id="solveBtn" disabled>Solve</button>
+        </div>
+
+        <div id="kbSpacer" class="keyboardSpacer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Only one helper -->
+  <button class="fabTop" id="toTop">Top</button>
+
+  <!-- RESULTS SCREEN -->
+  <div id="resultsScreen" class="screen" role="dialog" aria-modal="true" aria-labelledby="resTitle">
+    <div class="screenHeader">
+      <h2 id="resTitle" class="title">Pinning Results</h2>
+      <div class="actionsRow">
+        <button class="chip red"    id="backBtn">← Back</button>
+        <button class="chip blue"   id="fitBtn">Fit to width</button>
+        <button class="chip purple" id="copyTxtBtn">Copy</button>
+        <button class="chip green"  id="copyCsvBtn">CSV</button>
+      </div>
+    </div>
+    <div class="screenBody">
+      <div class="resCard">
+        <div class="table" id="tableWrap">
+          <table id="pinTable" class="striped">
+            <thead id="pinHead"></thead>
+            <tbody id="pinBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const grid = document.getElementById('grid');
+  const solveBtn = document.getElementById('solveBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const pinRadios = document.querySelectorAll('input[name="pins"]');
+  const scrollWrap = document.getElementById('scrollWrap');
+  const kbSpacer = document.getElementById('kbSpacer');
+  const toTopBtn = document.getElementById('toTop');
+
+  const resScreen = document.getElementById('resultsScreen');
+  const backBtn = document.getElementById('backBtn');
+  const pinHead = document.getElementById('pinHead');
+  const pinBody = document.getElementById('pinBody');
+  const tableWrap = document.getElementById('tableWrap');
+  const fitBtn = document.getElementById('fitBtn');
+  const copyTxtBtn = document.getElementById('copyTxtBtn');
+  const copyCsvBtn = document.getElementById('copyCsvBtn');
+
+  let pinCount = 7;
+  let phase = 'm';
+  let autoCenterEnabled = false;
+
+  /* ---------- Build inputs ---------- */
+  function build(){
+    grid.innerHTML='';
+    for(let i=1;i<=7;i++){
+      grid.append(makeIdx(i), makeInput('m',i), makeInput('c',i), makeInput('k',i));
+    }
+    applyPinCount(); updatePhase(); focusFirstEmpty(true);
+  }
+  function makeIdx(i){ const d=document.createElement('div'); d.className='idx'; d.textContent=i; return d; }
+
+  function centerBurst(el){
+    autoCenterEnabled = true;
+    const ping = ()=>keepInView(el);
+    [0,120,280].forEach(t=>setTimeout(ping,t)); // survive keyboard animation
+    setTimeout(()=>autoCenterEnabled=false, 750);
+  }
+
+  function makeInput(col,i){
+    const inp=document.createElement('input');
+    inp.type='tel'; inp.inputMode='numeric'; inp.autocomplete='off'; inp.maxLength=1;
+    inp.className='key'; inp.dataset.col=col; inp.dataset.index=i;
+
+    inp.addEventListener('focus',()=>{ centerBurst(inp); inp.select(); });
+
+    inp.addEventListener('input',(e)=>{
+      e.target.classList.remove('invalid');
+      e.target.value = e.target.value.replace(/[^0-9]/g,'').slice(0,1);
+      if(col==='c' && e.target.value!==''){
+        const mVal = valueAt('m', i), cVal = +e.target.value;
+        if(mVal!=null && Math.abs(mVal - cVal) === 1){ e.target.value=''; e.target.classList.add('invalid'); return; }
+      }
+      if(e.target.value){ focusNextInPhase(); }
+      updatePhase(); gateSolve();
+      if(phase==='k' && allFilled('k')){ document.activeElement?.blur?.(); showResults(); }
+    });
+
+    inp.addEventListener('keydown',(e)=>{
+      if(e.key==='Backspace' && !e.target.value){ focusPrevInPhase(); e.preventDefault(); }
+    });
+    return inp;
+  }
+
+  // Don’t fight user scroll: touching the scroller disables centering
+  ['touchstart','pointerdown','wheel','scroll'].forEach(ev=>{
+    scrollWrap.addEventListener(ev, ()=>{ autoCenterEnabled=false; }, {passive:true});
+  });
+
+  function ensureRoomFor(el){
+    const elTop = el.offsetTop, elH = el.offsetHeight;
+    const targetTop = Math.max(0, elTop - (scrollWrap.clientHeight - elH)/2);
+    const maxScroll = scrollWrap.scrollHeight - scrollWrap.clientHeight;
+    const deficit = targetTop - maxScroll;
+    if(deficit > 0){
+      const cur = parseFloat(getComputedStyle(kbSpacer).height)||0;
+      kbSpacer.style.height = (cur + deficit + 60) + 'px';
+    }
+  }
+  function keepInView(el){
+    if(!autoCenterEnabled) return;
+    if(!el || !scrollWrap.contains(el)) return;
+    ensureRoomFor(el);
+    const elTop = el.offsetTop, elH = el.offsetHeight;
+    const targetTop = Math.max(0, elTop - (scrollWrap.clientHeight - elH)/2);
+    scrollWrap.scrollTo({ top: targetTop, behavior: 'smooth' });
+  }
+
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const onVV = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      toTopBtn.style.bottom = (16 + kb + 64) + 'px';
+      const floor = 260;
+      kbSpacer.style.height = Math.max(floor, kb + 60) + 'px';
+      if(!autoCenterEnabled) return;
+      const a = document.activeElement;
+      if (a && a.classList?.contains('key')) keepInView(a);
+    };
+    vv.addEventListener('resize', onVV);
+    vv.addEventListener('scroll', onVV);
+    onVV();
+  }
+
+  /* ----- Phase / values ----- */
+  function inputs(col){ return [...grid.querySelectorAll('input.key')].filter(e=>e.dataset.col===col && +e.dataset.index<=pinCount).sort((a,b)=>+a.dataset.index-+b.dataset.index); }
+  function valueAt(col,i){ const el = inputs(col).find(x=>+x.dataset.index===i); return (!el||el.value==='')?null:+el.value; }
+  const anyEmpty = col => inputs(col).some(i=>i.value==='');
+  const allFilled = col => inputs(col).length && !anyEmpty(col);
+  const firstEmpty = col => inputs(col).find(i=>i.value==='');
+
+  function updatePhase(){
+    const mDone = allFilled('m'), cDone = allFilled('c');
+    phase = !mDone ? 'm' : (!cDone ? 'c' : 'k');
+    inputs('m').forEach(i=>i.disabled=false);
+    inputs('c').forEach(i=>i.disabled=(phase==='m'));
+    inputs('k').forEach(i=>i.disabled=(phase!=='k'));
+  }
+  function focusFirstEmpty(force=false){
+    const t = firstEmpty(phase) || firstEmpty('m') || firstEmpty('c') || firstEmpty('k');
+    if(t){ t.focus(); t.select(); if(force){ centerBurst(t); } }
+  }
+  function focusNextInPhase(){
+    const list = inputs(phase);
+    const idx = list.findIndex(el=>el===document.activeElement);
+    if(idx>-1 && idx<list.length-1){ list[idx+1].focus(); list[idx+1].select(); centerBurst(list[idx+1]); }
+    else if(idx===list.length-1){ updatePhase(); const t=firstEmpty(phase); if(t){ t.focus(); t.select(); centerBurst(t); } }
+  }
+  function focusPrevInPhase(){
+    const list = inputs(phase);
+    const idx = list.findIndex(el=>el===document.activeElement);
+    if(idx>0){ list[idx-1].focus(); list[idx-1].select(); centerBurst(list[idx-1]); }
+  }
+
+  function applyPinCount(){
+    [...grid.children].forEach(el=>{
+      if(el.classList.contains('idx')) el.classList.toggle('hide', +el.textContent>pinCount);
+      else if(el.matches('input.key')) el.classList.toggle('hide', +el.dataset.index>pinCount);
+    });
+  }
+  function readCuts(){ const cuts={m:[],c:[],k:[]}; for(let i=1;i<=pinCount;i++){ cuts.m.push(valueAt('m',i)); cuts.c.push(valueAt('c',i)); cuts.k.push(valueAt('k',i)); } return cuts; }
+  function gateSolve(){ const {m,c,k} = readCuts(); solveBtn.disabled = [...m,...c,...k].some(v=>v===null); }
+
+  /* ----- Results computation ----- */
+  function computeRows(){
+    const {m,c,k} = readCuts(); const rows=[];
+    for(let i=0;i<m.length;i++){
+      const mk=m[i], ck=c[i], kk=k[i];
+      const B=Math.min(mk,ck);
+      const M=Math.abs(mk-ck);
+      const D=(kk+10)-(B+M);
+      const T=23-(B+M+D);
+      rows.push({pos:i+1,T,D,M,B});
+    }
+    return rows;
+  }
+  const rowsToText = rows => {
+    const line=(l,k)=>`${l}: ${rows.map(r=>r[k]).join(' ')}`;
+    return [`Pos: ${rows.map(r=>r.pos).join(' ')}`, line('T','T'), line('D','D'), line('M','M'), line('B','B')].join('\n');
+  };
+  const rowsToCSV = rows => {
+    const head=['','1','2','3','4','5','6','7'].slice(0,rows.length+1).join(',');
+    const row=(l,k)=>[l,...rows.map(r=>r[k])].join(',');
+    return [head,row('T','T'),row('D','D'),row('M','M'),row('B','B')].join('\n');
+  };
+
+  function showResults(){
+    const rows = computeRows();
+    pinHead.innerHTML = `<tr><th class="stickLeft corner"></th>${rows.map(r=>`<th>${r.pos}</th>`).join('')}</tr>`;
+    const rowHTML = (l,k)=>`<tr><th class="stickLeft">${l}</th>${rows.map(r=>`<td>${r[k]}</td>`).join('')}</tr>`;
+    pinBody.innerHTML = [rowHTML('T','T'),rowHTML('D','D'),rowHTML('M','M'),rowHTML('B','B')].join('');
+    resScreen.classList.add('show');
+    document.body.classList.add('resultsOpen');      // mute sticky header
+    document.getElementById('tableWrap').classList.remove('compact');
+    fitBtn.textContent='Fit to width';
+    toTopBtn.classList.add('hide'); // hide helper on results
+  }
+
+  /* ----- Events ----- */
+  toTopBtn.onclick = ()=> scrollWrap.scrollTo({top:0, behavior:'smooth'});
+
+  clearBtn.addEventListener('click',()=>{
+    grid.querySelectorAll('input.key').forEach(i=>{ i.value=''; i.classList.remove('invalid'); });
+    resScreen.classList.remove('show');
+    document.body.classList.remove('resultsOpen');
+    scrollWrap.scrollTop=0; kbSpacer.style.height='260px';
+    toTopBtn.classList.remove('hide');
+    updatePhase(); gateSolve(); focusFirstEmpty(true);
+  });
+
+  backBtn.addEventListener('click', ()=>{
+    resScreen.classList.remove('show');
+    document.body.classList.remove('resultsOpen');
+    toTopBtn.classList.remove('hide');
+    autoCenterEnabled = false; // you can scroll freely until you focus a field again
+  });
+
+  fitBtn.addEventListener('click', ()=>{
+    const on = tableWrap.classList.toggle('compact');
+    fitBtn.textContent = on ? 'Normal width' : 'Fit to width';
+  });
+  copyTxtBtn.addEventListener('click', ()=> {
+    const rows = computeRows(); const text = rowsToText(rows);
+    if(navigator.share){ navigator.share({text}).catch(()=>navigator.clipboard.writeText(text)); }
+    else { navigator.clipboard.writeText(text).catch(()=>alert(text)); }
+  });
+  copyCsvBtn.addEventListener('click',  ()=> {
+    const rows = computeRows(); const text = rowsToCSV(rows);
+    navigator.clipboard.writeText(text).catch(()=>alert(text));
+  });
+
+  pinRadios.forEach(r=>r.addEventListener('change', e=>{
+    pinCount=+e.target.value; resScreen.classList.remove('show');
+    document.body.classList.remove('resultsOpen');
+    toTopBtn.classList.remove('hide');
+    applyPinCount(); updatePhase(); gateSolve(); focusFirstEmpty(true);
+  }));
+
+  build();
+})();
+</script>
+</body>
+</html>
