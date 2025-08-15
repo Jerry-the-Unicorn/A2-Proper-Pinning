@@ -2,7 +2,7 @@
 
 **App:** SFIC A2 Proper Pinning Calculator  
 **Developer:** Jerry Dionisio  
-**Contact:** Jerry@JerryDionisio.com  
+**Contact:** Jerry@Jerrys-locks.com  
 **Last updated:** 08-11-2025
 
 ## What we collect
